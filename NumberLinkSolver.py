@@ -1,5 +1,7 @@
 from pysat.solvers import Glucose3
 from pysat.card import CardEnc
+from pysat.examples.rc2 import RC2
+from pysat.formula import WCNF
 
 class NumberLinkSolver:
     def __init__(self, grid):
@@ -46,13 +48,30 @@ class NumberLinkSolver:
         self.cnf = [] # リセット
         self._generate_constraints(force_full_fill)
         
-        with Glucose3() as solver:
-            solver.append_formula(self.cnf)
-            if solver.solve():
-                model = solver.get_model()
-                return self._decode_model(model)
-            else:
-                return None
+        if force_full_fill:
+            with Glucose3() as solver:
+                solver.append_formula(self.cnf)
+                if solver.solve():
+                    model = solver.get_model()
+                    return self._decode_model(model)
+                else:
+                    return None
+        else:
+            wcnf = WCNF()
+            for clause in self.cnf:
+                wcnf.append(clause)
+            
+            # 最短経路のみを線でつなぐため、エッジ変数をなるべくFalseにするというソフト制約を入れる
+            for name, var_id in self.var_map.items():
+                if name.startswith('H_') or name.startswith('V_'):
+                    wcnf.append([-var_id], weight=1)
+            
+            with RC2(wcnf) as solver:
+                model = solver.compute()
+                if model is not None:
+                    return self._decode_model(model)
+                else:
+                    return None
 
     def _generate_constraints(self, force_full_fill):
         for r in range(self.rows):
