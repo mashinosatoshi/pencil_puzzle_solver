@@ -35,26 +35,54 @@ def _adjacent(a, b):
     return abs(a[0]-b[0]) + abs(a[1]-b[1]) == 1
 
 
-def make_zigzag_path(h, w):
+import sys
+sys.setrecursionlimit(20000)
+
+def make_random_hamiltonian_path(h, w):
     """
-    縦ストライプジグザグ順序のハミルトンパスを生成する。
-    各列を上または下方向に走り、交互に折り返す。
+    Warnsdorffのヒューリスティックを用いたランダム化DFSにより、
+    入り組んだランダムなハミルトンパスを生成する。
     """
+    grid = [[False] * w for _ in range(h)]
     path = []
-    for col in range(w):
-        if col % 2 == 0:
-            for r in range(h):
-                path.append((r, col))
-        else:
-            for r in range(h - 1, -1, -1):
-                path.append((r, col))
+    
+    def dfs(r, c):
+        grid[r][c] = True
+        path.append((r, c))
+        if len(path) == h * w:
+            return True
+            
+        neighbors = []
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < h and 0 <= nc < w and not grid[nr][nc]:
+                count = 0
+                for ddr, ddc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nnr, nnc = nr + ddr, nc + ddc
+                    if 0 <= nnr < h and 0 <= nnc < w and not grid[nnr][nnc]:
+                        count += 1
+                # ランダム性を加える
+                neighbors.append((count, random.random(), (nr, nc)))
+        
+        # 訪問可能な隣接先が少ない順に探索（行き止まり回避）
+        neighbors.sort()
+        
+        for _, _, nxt in neighbors:
+            if dfs(*nxt):
+                return True
+                
+        grid[r][c] = False
+        path.pop()
+        return False
+        
+    dfs(0, 0)
     return path
 
 
 def split_path(path, n):
-    """ハミルトンパスをランダムにn本に分割する（各パスは長さ>=2）"""
+    """ハミルトンパスをランダムにn本に分割する（各パスは長さ>=3、エンドポイント隣接なし）"""
     total = len(path)
-    if n * 2 > total:
+    if n * 3 > total:
         return None
 
     positions = list(range(1, total))
@@ -78,7 +106,7 @@ def split_path(path, n):
     prev = 0
     for cut in cuts + [total]:
         seg = path[prev:cut]
-        if len(seg) < 2:
+        if len(seg) < 3 or _adjacent(seg[0], seg[-1]):
             return None
         paths.append(seg)
         prev = cut
@@ -86,8 +114,14 @@ def split_path(path, n):
 
 
 def generate_cover(h, w, n):
-    """n本のパスで全マスを被覆する。縦ジグザグパスを切断。"""
-    base = make_zigzag_path(h, w)
+    """n本のパスで全マスを被覆する。ランダムなハミルトンパスを切断。"""
+    for _ in range(100):
+        base = make_random_hamiltonian_path(h, w)
+        if base and check_corners([base], h, w):
+            break
+    else:
+        # 見つからなかった場合は適当に生成（通常は数回で見つかる）
+        base = make_random_hamiltonian_path(h, w)
     for _ in range(10000):
         result = split_path(base, n)
         if result is not None:
@@ -378,6 +412,25 @@ def paths_to_edges(paths):
     return edges
 
 
+def check_corners(paths, h, w):
+    """すべての行と列に、必ず直角になる箇所（コーナー）が1か所以上あるか判定する"""
+    row_has_corner = [False] * h
+    col_has_corner = [False] * w
+    
+    for p in paths:
+        for i in range(1, len(p) - 1):
+            r1, c1 = p[i-1]
+            r2, c2 = p[i]
+            r3, c3 = p[i+1]
+            
+            # 進行方向が変わる（直角・コーナー）場合
+            if r1 != r3 and c1 != c3:
+                row_has_corner[r2] = True
+                col_has_corner[c2] = True
+                
+    return all(row_has_corner) and all(col_has_corner)
+
+
 def paths_to_grid(paths, h, w):
     grid = [[0] * w for _ in range(h)]
     for k, p in enumerate(paths, 1):
@@ -391,17 +444,19 @@ def paths_to_grid(paths, h, w):
 
 
 def try_split(paths, sol_edges, edge_key):
-    """edge_keyでパスを分割する（長さ<2になる場合はNone）"""
+    """edge_keyでパスを分割する（同じ数字が隣接する場合はNone）"""
     for pi, p in enumerate(paths):
         for si in range(len(p) - 1):
             key = tuple(sorted((p[si], p[si+1])))
             if key == edge_key:
                 left_len = si + 1
                 right_len = len(p) - (si + 1)
-                if left_len < 2 or right_len < 2:
+                if left_len < 3 or right_len < 3:
                     return None
                 left = p[:si + 1]
                 right = p[si + 1:]
+                if _adjacent(left[0], left[-1]) or _adjacent(right[0], right[-1]):
+                    return None
                 new_paths = paths[:pi] + [left, right] + paths[pi+1:]
                 new_edges = paths_to_edges(new_paths)
                 return new_paths, new_edges
@@ -422,6 +477,9 @@ def try_merge(paths, i, j):
     elif _adjacent(pi[0], pj[-1]):
         merged = pj + pi
     else:
+        return None
+
+    if _adjacent(merged[0], merged[-1]):
         return None
 
     return merged
@@ -554,6 +612,11 @@ def build_arukone(h, w, target_max_n=10, verbose=True):
                             print(f"  {len(paths)+1} -> {len(paths)} ペア ({time.time()-t0:.1f}秒)")
                         improved = True
                         found = True
+
+        if not check_corners(paths, h, w):
+            if verbose:
+                print(f"  直角条件（各行列に1つ以上）未達のためリトライします。")
+            continue
 
         grid = paths_to_grid(paths, h, w)
         n = len(paths)
