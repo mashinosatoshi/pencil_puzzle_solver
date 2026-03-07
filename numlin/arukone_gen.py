@@ -505,7 +505,7 @@ def fix_alt(paths, sol_edges, alt_edges):
 # パート4: 作問メインロジック
 # ==============================================================
 
-def build_arukone(h, w, target_max_n=10, verbose=True):
+def build_arukone(h, w, target_max_n=10, verbose=False):
     """
     target_max_n 以下のペア数で全マス使用の唯一解アルコネパズルを生成する。
 
