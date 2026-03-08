@@ -8,7 +8,7 @@ class NumberLinkSolver:
         self.grid = grid
         self.rows = len(grid)
         self.cols = len(grid[0])
-        self.colors = set(val for row in grid for val in row if val != 0)
+        self.colors = set(val for row in grid for val in row if val != -1)
         
         self.var_map = {}
         self.next_var = 1
@@ -81,7 +81,7 @@ class NumberLinkSolver:
                 self.add_clauses(CardEnc.equals(lits=color_vars, bound=1, top_id=self.next_var-1))
                 
                 # 数字マスの固定
-                if self.grid[r][c] != 0:
+                if self.grid[r][c] != -1:
                     k = self.grid[r][c]
                     self.cnf.append([self.get_var(f'C_{r}_{c}_{k}')])
 
@@ -119,7 +119,7 @@ class NumberLinkSolver:
                     adj_edges.append(self.get_var(f'V_{r-1}_{c}'))
 
                 # 2. 次数制約
-                if self.grid[r][c] != 0:
+                if self.grid[r][c] != -1:
                     # 端点: 次数は必ず 1
                     self.add_clauses(CardEnc.equals(lits=adj_edges, bound=1, top_id=self.next_var-1))
                 else:
@@ -145,7 +145,7 @@ class NumberLinkSolver:
                                     self.cnf.append([-e_target])
 
     def _decode_model(self, model):
-        result = [[0] * self.cols for _ in range(self.rows)]
+        result = [[-1] * self.cols for _ in range(self.rows)]
         model_set = set(model)
         
         # 接続があるセルを特定
@@ -159,7 +159,7 @@ class NumberLinkSolver:
                 if r < self.rows - 1 and self.get_var(f'V_{r}_{c}') in model_set: is_connected = True
                 if r > 0 and self.get_var(f'V_{r-1}_{c}') in model_set: is_connected = True
                 
-                if self.grid[r][c] != 0 or is_connected:
+                if self.grid[r][c] != -1 or is_connected:
                     connected_cells.add((r,c))
 
         for r in range(self.rows):
