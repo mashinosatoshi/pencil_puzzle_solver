@@ -227,7 +227,7 @@ class ArukoneChecker:
             for c in range(self.cols):
                 ie = self._v(f'ie{r}_{c}')
                 g = grid[r][c]
-                if g != 0:
+                if g != -1:
                     asm += [ie, self._v(f'c{r}_{c}_{g-1}')]
                 else:
                     asm.append(-ie)
@@ -365,7 +365,7 @@ class StandardChecker:
             for c in range(self.cols):
                 ie = self._v(f'sie{r}_{c}')
                 g = grid[r][c]
-                if g != 0:
+                if g != -1:
                     asm += [ie, self._v(f'sc{r}_{c}_{g-1}')]
                 else:
                     asm.append(-ie)
@@ -432,11 +432,11 @@ def check_corners(paths, h, w):
 
 
 def paths_to_grid(paths, h, w):
-    grid = [[0] * w for _ in range(h)]
+    grid = [[-1] * w for _ in range(h)]
     for k, p in enumerate(paths, 1):
         r1, c1 = p[0]
         r2, c2 = p[-1]
-        if grid[r1][c1] != 0 or grid[r2][c2] != 0:
+        if grid[r1][c1] != -1 or grid[r2][c2] != -1:
             return None  # 端点重複
         grid[r1][c1] = k
         grid[r2][c2] = k
