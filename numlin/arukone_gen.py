@@ -413,11 +413,20 @@ def paths_to_edges(paths):
 
 
 def check_corners(paths, h, w):
-    """すべての行と列に、必ず直角になる箇所（コーナー）が1か所以上あるか判定する"""
-    row_has_corner = [False] * h
-    col_has_corner = [False] * w
+    """すべての行と列に、必ず直角になる箇所（コーナー）または数字（端点）が1か所以上あるか判定する"""
+    row_condition = [False] * h
+    col_condition = [False] * w
     
     for p in paths:
+        # 端点（数字）の条件をチェック
+        r_start, c_start = p[0]
+        row_condition[r_start] = True
+        col_condition[c_start] = True
+        
+        r_end, c_end = p[-1]
+        row_condition[r_end] = True
+        col_condition[c_end] = True
+
         for i in range(1, len(p) - 1):
             r1, c1 = p[i-1]
             r2, c2 = p[i]
@@ -425,10 +434,10 @@ def check_corners(paths, h, w):
             
             # 進行方向が変わる（直角・コーナー）場合
             if r1 != r3 and c1 != c3:
-                row_has_corner[r2] = True
-                col_has_corner[c2] = True
+                row_condition[r2] = True
+                col_condition[c2] = True
                 
-    return all(row_has_corner) and all(col_has_corner)
+    return all(row_condition) and all(col_condition)
 
 
 def paths_to_grid(paths, h, w):
@@ -615,7 +624,7 @@ def build_arukone(h, w, target_max_n=10, verbose=False):
 
         if not check_corners(paths, h, w):
             if verbose:
-                print(f"  直角条件（各行列に1つ以上）未達のためリトライします。")
+                print(f"  直角・数字条件（各行列に1つ以上）未達のためリトライします。")
             continue
 
         grid = paths_to_grid(paths, h, w)
