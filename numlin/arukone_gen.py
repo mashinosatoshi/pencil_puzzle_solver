@@ -79,22 +79,34 @@ def make_random_hamiltonian_path(h, w):
     return path
 
 
-def split_path(path, n):
+def split_path(path, n, h, w):
     """ハミルトンパスをランダムにn本に分割する（各パスは長さ>=3、エンドポイント隣接なし）"""
     total = len(path)
     if n * 3 > total:
         return None
 
     positions = list(range(1, total))
+    
+    def is_boundary(pos_idx):
+        if pos_idx < 0 or pos_idx >= total: return False
+        r, c = path[pos_idx]
+        return r == 0 or r == h - 1 or c == 0 or c == w - 1
+
+    def cut_score(p):
+        return int(is_boundary(p-1)) + int(is_boundary(p))
+
+    # まずランダムシャッフルし、その後に安定ソートでスコア順にする
     random.shuffle(positions)
+    positions.sort(key=cut_score)
+
     cuts = []
     used = set()
     for p in positions:
         if p not in used:
             cuts.append(p)
-            used.add(p-1)
-            used.add(p)
-            used.add(p+1)
+            # 各セグメントの長さが必ず3以上になるよう、カット位置の前後2マス以内を禁止する
+            for dp in [-2, -1, 0, 1, 2]:
+                used.add(p + dp)
             if len(cuts) == n - 1:
                 break
 
@@ -123,7 +135,7 @@ def generate_cover(h, w, n):
         # 見つからなかった場合は適当に生成（通常は数回で見つかる）
         base = make_random_hamiltonian_path(h, w)
     for _ in range(10000):
-        result = split_path(base, n)
+        result = split_path(base, n, h, w)
         if result is not None:
             return result
     return None
@@ -494,14 +506,22 @@ def try_merge(paths, i, j):
     return merged
 
 
-def fix_alt(paths, sol_edges, alt_edges):
+def fix_alt(paths, sol_edges, alt_edges, h, w):
     """
     別解（alt_edges）を踏まえて、正解と別解の差分エッジを切断してペア数を増やす。
     """
     sol_set = {tuple(sorted((a, b))) for a, b in sol_edges}
     alt_set = {tuple(sorted((a, b))) for a, b in alt_edges}
     diff = list(sol_set - alt_set)
-    random.shuffle(diff)
+    
+    def edge_score(edge_key):
+        (r1, c1), (r2, c2) = edge_key
+        b1 = (r1 == 0 or r1 == h - 1 or c1 == 0 or c1 == w - 1)
+        b2 = (r2 == 0 or r2 == h - 1 or c2 == 0 or c2 == w - 1)
+        return int(b1) + int(b2)
+        
+    # 端点が外周に配置されるのを避けるため、外周辺を含まないエッジの切断を優先
+    diff.sort(key=lambda e: (edge_score(e), random.random()))
 
     for edge_key in diff:
         result = try_split(paths, sol_edges, edge_key)
@@ -567,7 +587,7 @@ def build_arukone(h, w, target_max_n=10, verbose=False):
                     break
 
             # 別解のエッジと正解のエッジの差分を切断してペアを追加
-            result = fix_alt(paths, sol_edges, alt)
+            result = fix_alt(paths, sol_edges, alt, h, w)
             if result is None:
                 break
             paths, sol_edges = result
@@ -584,7 +604,16 @@ def build_arukone(h, w, target_max_n=10, verbose=False):
         while improved and len(paths) > target_max_n:
             improved = False
             indices = list(range(len(paths)))
-            random.shuffle(indices)
+            
+            def boundary_count(pi):
+                c = 0
+                for r, c_idx in [paths[pi][0], paths[pi][-1]]:
+                    if r == 0 or r == h - 1 or c_idx == 0 or c_idx == w - 1:
+                        c += 1
+                return c
+            
+            # 外周に端点を持つパスから優先的に結合を試みることで、外周の端点を減らす
+            indices.sort(key=lambda i: (-boundary_count(i), random.random()))
 
             found = False
             for i in indices:
@@ -625,6 +654,17 @@ def build_arukone(h, w, target_max_n=10, verbose=False):
         if not check_corners(paths, h, w):
             if verbose:
                 print(f"  直角・数字条件（各行列に1つ以上）未達のためリトライします。")
+            continue
+
+        boundary_endpoints = 0
+        for p in paths:
+            for r, c in [p[0], p[-1]]:
+                if r == 0 or r == h - 1 or c == 0 or c == w - 1:
+                    boundary_endpoints += 1
+        
+        if boundary_endpoints > 2:
+            if verbose:
+                print(f"  外縁の端点が多い({boundary_endpoints}個)ためリトライします。")
             continue
 
         grid = paths_to_grid(paths, h, w)
