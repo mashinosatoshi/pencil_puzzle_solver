@@ -50,6 +50,54 @@ def save_numlin_format(grid, filename):
 
     print(f"Exported to {filename}")
 
+def load_numlin_format(filename):
+    """
+    保存されているフォーマットのファイルを読み取り、パズル盤面の配列に変換して返す。
+    
+    Args:
+        filename (str): 読み込むファイルのパス。
+        
+    Returns:
+        list of list of int: パズル盤面。
+    """
+    with open(filename, 'r', encoding='utf-8') as f:
+        content = f.read()
+    return parse_numlin_format(content)
+
+def parse_numlin_format(content):
+    """
+    フォーマット文字列を読み取り、パズル盤面の2次元配列(グリッド)に変換する。
+    
+    Args:
+        content (str): フォーマットされた文字列。
+        
+    Returns:
+        list of list of int: パズル盤面。
+    """
+    lines = content.strip().splitlines()
+    if len(lines) < 4:
+        raise ValueError("行数が足りません")
+        
+    if lines[0].strip() != "pzprv3" or lines[1].strip() != "numlin":
+        raise ValueError("指定のフォーマット(pzprv3/numlin)ではありません")
+        
+    height = int(lines[2].strip())
+    width = int(lines[3].strip())  # (必要に応じて検証に利用)
+    
+    grid = []
+    # 5行目(インデックス4)から高さの分だけ盤面データを読み取る
+    for i in range(4, 4 + height):
+        row_str = lines[i].strip().split()
+        row = []
+        for cell in row_str:
+            if cell == ".":
+                row.append(0)
+            else:
+                row.append(int(cell))
+        grid.append(row)
+        
+    return grid
+
 def writeNumber16(qn):
     """マスの数字を文字列に変換する"""
     if qn == -2: # (-2は通常使わない特殊記号)
