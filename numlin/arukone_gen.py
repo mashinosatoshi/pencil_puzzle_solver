@@ -25,6 +25,7 @@ import random
 import time
 from pysat.solvers import Glucose3
 from pysat.card import CardEnc
+from DifficultyEstimator import evaluate_difficulty
 
 
 # ==============================================================
@@ -514,7 +515,7 @@ def fix_alt(paths, sol_edges, alt_edges):
 # パート4: 作問メインロジック
 # ==============================================================
 
-def build_arukone(h, w, target_max_n=10, verbose=False):
+def build_arukone(h, w, target_max_n=10, min_conflicts=500, verbose=False):
     """
     target_max_n 以下のペア数で全マス使用の唯一解アルコネパズルを生成する。
 
@@ -633,7 +634,18 @@ def build_arukone(h, w, target_max_n=10, verbose=False):
         if verbose:
             print(f"  ✓ 完成 n={n} ({time.time()-t0:.2f}秒)")
 
-        return grid, paths
+        # ─── 最終難易度チェック ───
+        stats = evaluate_difficulty(grid)
+        conf = stats['conflicts']
+        if conf < min_conflicts:
+            if verbose:
+                print(f"  難易度不足 (Conflicts: {conf} < {min_conflicts}) のためリトライします。")
+            continue
+
+        if verbose:
+            print(f"  ✓ 基準達成 (Conf:{conf})")
+
+        return grid, paths, conf
 
 
 # ==============================================================
